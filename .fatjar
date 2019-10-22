@@ -1,0 +1,14 @@
+#Fat Jar Configuration File
+#Fri Sep 06 16:29:53 CEST 2013
+onejar.license.required=false
+manifest.classpath=. ./lib
+manifest.removesigners=true
+onejar.checkbox=false
+jarname=/Daten/Projekte/Java/Eclipse/FTLEdit_0.3/deploy/ftleditwin.jar
+manifest.mergeall=true
+manifest.mainclass=net.mortaxx.software.FTLEdit.FTLEditNativeLaunch
+manifest.file=<createnew>
+jarname.isextern=true
+onejar.expand=
+excludes=
+includes=

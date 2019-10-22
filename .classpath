@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry combineaccessrules="false" exported="true" kind="src" path="/FlatFusionTools"/>
+	<classpathentry combineaccessrules="false" exported="true" kind="src" path="/osdfsutils"/>
+	<classpathentry kind="lib" path="/media/datahd/Daten/Projekte/Java/FlatFusionEdit_lib/rsyntaxtextarea_2_6_1/language_support.jar"/>
+	<classpathentry kind="lib" path="/media/datahd/Daten/Projekte/Java/FlatFusionEdit_lib/rsyntaxtextarea_2_6_1/rhino-1.7.6.jar"/>
+	<classpathentry kind="lib" path="/media/datahd/Daten/Projekte/Java/FlatFusionEdit_lib/rsyntaxtextarea_2_6_1/rsyntaxtextarea-2.6.1.jar"/>
+	<classpathentry kind="lib" path="/media/datahd/Daten/Projekte/Java/FlatFusionEdit_lib/rsyntaxtextarea_2_6_1/autocomplete-2.6.0.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>
