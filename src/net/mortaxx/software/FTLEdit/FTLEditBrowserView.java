@@ -47,6 +47,9 @@ Copyright (c) 2012, Robert Futrell - https://github.com/bobbylight
 --> Rhino
 Copyright (c) 2012, Mozilla Corporation - https://github.com/mozilla/rhino
 
+--> Java Native Access (JNA)
+Copyright (c) 2007-2019 by Timothy Wall - https://github.com/java-native-access/jna#readme
+
 */
 
 import java.awt.BorderLayout;

@@ -47,16 +47,11 @@ Copyright (c) 2012, Robert Futrell - https://github.com/bobbylight
 --> Rhino
 Copyright (c) 2012, Mozilla Corporation - https://github.com/mozilla/rhino
 
---> Chromium Embedded Framwork (cef)/Java Chromium Embeddes Framework (jcef)
-Copyright (c) 2008-2013, Marshall A. Greenblatt. 
-Portions Copyright (c) 2006-2009 Google Inc.
-https://bitbucket.org/chromiumembedded/java-cef/src/master/
-https://bitbucket.org/chromiumembedded/cef/src/master/
-
---> Gluegen/Jogl
-Copyright (c) 2010 JogAmp Community - http://jogamp.org/
+--> Java Native Access (JNA)
+Copyright (c) 2007-2019 by Timothy Wall - https://github.com/java-native-access/jna#readme
 
 */
+
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.DataInputStream;
