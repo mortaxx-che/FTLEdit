@@ -10,5 +10,6 @@
 	<classpathentry kind="lib" path="/media/datahd/Daten/Projekte/Java/FlatFusionEdit_lib/rsyntaxtextarea_2_6_1/autocomplete-2.6.0.jar"/>
 	<classpathentry kind="lib" path="/media/datahd/Daten/Projekte/Java/FlatFusionEdit_lib/jna/jna.jar"/>
 	<classpathentry kind="lib" path="/media/datahd/Daten/Projekte/Java/FlatFusionEdit_lib/jna/platform.jar"/>
+	<classpathentry kind="lib" path="/media/datahd/Daten/Projekte/Java/FlatFusionEdit_lib/rsyntaxtextarea_2_6_1/rstaui-2.6.0.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
