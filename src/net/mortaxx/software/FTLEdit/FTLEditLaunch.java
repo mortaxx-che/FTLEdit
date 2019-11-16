@@ -62,6 +62,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.nio.file.Path;
 
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
@@ -143,7 +144,15 @@ public class FTLEditLaunch {
 				}
 	  		}
 	  		
-	  	} else {
+	  	} else if (System.getProperty("os.name").indexOf("nix") >= 0 || System.getProperty("os.name").indexOf("nux") >= 0 ){
+// Unter Linux wird das erste uebergebene Argument als Dateiname gewertet
+	  		if (args.length > 0) {
+		  		File startfile = new File(args[0]);
+		  		if (startfile.exists()) {
+		  			startFile = args[0];
+		  			startDir = startfile.getParent();
+		  		}
+	  		}
 // Kein Mac-System - DJNative Swing initialisieren
 //	  		NativeInterface.open();
 	  	}
