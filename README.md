@@ -18,4 +18,6 @@ Functions:
 
 This software is published under the "Simplified BSD License" (2-clause license)
 
+To compile the project you need to add my other projects https://github.com/mortaxx-che/osdfsutils.git and https://github.com/mortaxx-che/FlatFusionTools.git
+
 [![ko-fi](https://www.ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/X7X2137WI)
