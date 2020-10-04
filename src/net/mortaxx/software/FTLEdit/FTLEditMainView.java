@@ -57,18 +57,26 @@ import javax.swing.JPopupMenu;
 
 import java.awt.BorderLayout;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.Image;
+import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
 
 import javax.swing.JSplitPane;
+import javax.swing.JTabbedPane;
+
 import java.awt.Color;
 import java.awt.Component;
 import java.io.File;
 import java.io.FileInputStream;
 
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
@@ -80,16 +88,21 @@ import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
+import javax.swing.JComponent;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
+import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JScrollPane;
 import javax.swing.JSeparator;
 import javax.swing.JTextField;
-
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
+import javax.swing.plaf.metal.MetalIconFactory;
 import javax.swing.JToolBar;
 import javax.swing.JTree;
 import javax.swing.KeyStroke;
@@ -115,12 +128,10 @@ import org.fife.rsta.ui.search.ReplaceDialog;
 import org.mozilla.javascript.ast.AstNode;
 
 import net.mortaxx.software.FTLEdit.FTLEditController.ShowReplaceDialogAction;
+import net.mortaxx.software.FlatFusionTools.JTabbedPaneCloseButton;
 import net.mortaxx.software.osdfsutils.SpecialDataTypes;
 
 @SuppressWarnings("serial")
-//import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
-//import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
-//import org.fife.ui.rtextarea.RTextScrollPane;
 
 class OutlineTreeNode extends DefaultMutableTreeNode {
 	public OutlineTreeNode(Object object) {
@@ -177,6 +188,46 @@ class MXJavaScriptTreeCellRenderer extends DefaultTreeCellRenderer {
 	}
 }
 
+class MXNewSourceTabFactory {
+	
+	public static JPanel createTab(String absoluteFileName) {
+
+		  JPanel pnSourcePanel = new JPanel(new BorderLayout());
+		  pnSourcePanel.setName(absoluteFileName);
+		  
+		  RSyntaxTextArea sourceCodeTextArea = new RSyntaxTextArea();
+
+		  RTextScrollPane scpsourceCodeTextArea = new RTextScrollPane(sourceCodeTextArea);
+//Bookmarking anschalten - Bookmarks werden mit CTRL + F2 gesetzt/gelöscht - mit F2 kann man durchblättern
+		  scpsourceCodeTextArea.getGutter().setBookmarkIcon(new ImageIcon(MXNewSourceTabFactory.class.getResource("/resources/flag_red.png")));
+		  scpsourceCodeTextArea.getGutter().setBookmarkingEnabled(true);
+		  sourceCodeTextArea.setLineWrap(true);
+//Für den Sprachsupport registrieren, nur dann funktioniert die Outliner-Funktion
+		  LanguageSupportFactory lsf = LanguageSupportFactory.get();
+		  lsf.register(sourceCodeTextArea);
+		  sourceCodeTextArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_JAVASCRIPT);
+		  sourceCodeTextArea.setText("");
+		  sourceCodeTextArea.setEditable(false);	
+		  sourceCodeTextArea.setBackground(new Color(229,243,255)); //Helles Blau - wenn Panel im Anzeigemodus
+
+		  pnSourcePanel.add( scpsourceCodeTextArea, BorderLayout.CENTER); //JEditorPane zu Container hinzufügen
+
+        return pnSourcePanel;
+	}
+	
+	public static <T extends Component> List<T> findAllChildren(JComponent component, Class<T> clazz) {
+	    List<T> lstChildren = new ArrayList<T>(5);
+	    for (Component comp : component.getComponents()) {
+	        if (clazz.isInstance(comp)) {
+	            lstChildren.add((T) comp);
+	        } else if (comp instanceof JComponent) {
+	            lstChildren.addAll(findAllChildren((JComponent) comp, clazz));
+	        }
+	    }
+
+	    return Collections.unmodifiableList(lstChildren);
+	}
+}
 
 @SuppressWarnings("serial")
 public class FTLEditMainView extends JPanel {
@@ -192,10 +243,13 @@ public class FTLEditMainView extends JPanel {
 	JScrollPane scpoutlinetree; // Scrollkomponente für JTree Javascript Outliner
 	JScrollPane scpjavaoutlinetree; // Scrollkomponente für JTree Java Outliner
 	JScrollPane scpbookmarktree; // Scrollkomponente für JTree Java Outliner
+    // Erzeugung eines JTabbedPane-Objektes
+	JTabbedPaneCloseButton jtpFlatFusionEditTabbedPane;
 	
 	JPanel pnTreePanel; // Container für Dateibaum
 	JPanel pnSourcePanel; // Container für Quellcodeansicht
 	JPanel pnPreviewPanel; // Container für Vorschauansicht
+	JPanel pnActTabPanel; // Panel des aktuell ausgew㧬ten Tabs
 	JPanel pnbuttonPanel; // Container für Buttonleiste
 	JPanel pnJSOutlinePanel; // Container für Javascript-Outliner
 	JPanel pnJavaOutlinePanel; // Container für Java-Outliner
@@ -428,29 +482,67 @@ public class FTLEditMainView extends JPanel {
 		  
 		  pnSourcePanel = new JPanel(new BorderLayout());
 		  
-		  sourceCodeTextArea = new RSyntaxTextArea();
+//		  sourceCodeTextArea = new RSyntaxTextArea();
 
-		  scpsourceCodeTextArea = new RTextScrollPane(sourceCodeTextArea);
+//		  scpsourceCodeTextArea = new RTextScrollPane(sourceCodeTextArea);
 // Bookmarking anschalten - Bookmarks werden mit CTRL + F2 gesetzt/gelöscht - mit F2 kann man durchblättern
-		  scpsourceCodeTextArea.getGutter().setBookmarkIcon(new ImageIcon(this.getClass().getResource("/resources/flag_red.png")));
+/*		  scpsourceCodeTextArea.getGutter().setBookmarkIcon(new ImageIcon(this.getClass().getResource("/resources/flag_red.png")));
 		  scpsourceCodeTextArea.getGutter().setBookmarkingEnabled(true);
-		  sourceCodeTextArea.setLineWrap(true);
+		  sourceCodeTextArea.setLineWrap(true);*/
 // Für den Sprachsupport registrieren, nur dann funktioniert die Outliner-Funktion
-		  LanguageSupportFactory lsf = LanguageSupportFactory.get();
+/*		  LanguageSupportFactory lsf = LanguageSupportFactory.get();
 		  lsf.register(sourceCodeTextArea);
 		  sourceCodeTextArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_JAVASCRIPT);
 		  sourceCodeTextArea.setText("");
 		  sourceCodeTextArea.setEditable(false);	
 		  sourceCodeTextArea.setBackground(new Color(229,243,255)); //Helles Blau - wenn Panel im Anzeigemodus
 
-		  pnSourcePanel.add( scpsourceCodeTextArea, BorderLayout.CENTER); //JEditorPane zu Container hinzufügen
+		  pnSourcePanel.add( scpsourceCodeTextArea, BorderLayout.CENTER); //JEditorPane zu Container hinzufügen*/
 		  
 // Outliner für alle unterstützten Sprachen erzeugen - derzeit Java/Javascript
 		  jsoutlinetree = new FTLEditJavaScriptOutlineTree();
-		  jsoutlinetree.setGotoSelectedElementOnClick(true);
+		  jsoutlinetree.setGotoSelectedElementOnClick(false);
 		  javaoutlinetree = new JavaOutlineTree();
-		  javaoutlinetree.setGotoSelectedElementOnClick(true);
+		  javaoutlinetree.setGotoSelectedElementOnClick(false);
 
+// Den initialen Tab erzeugen
+		  
+		  jtpFlatFusionEditTabbedPane = new JTabbedPaneCloseButton
+		            (JTabbedPane.TOP,JTabbedPane.WRAP_TAB_LAYOUT );
+		        
+/*		  jtpFlatFusionEditTabbedPane.addChangeListener(new ChangeListener() {
+
+		    		public void stateChanged(ChangeEvent e) {
+		                System.out.println("Tab: " + jtpFlatFusionEditTabbedPane.getSelectedIndex());
+		                List<RSyntaxTextArea> areas = MXNewSourceTabFactory.findAllChildren((JComponent)jtpFlatFusionEditTabbedPane.getSelectedComponent(), RSyntaxTextArea.class);
+		                if (areas.size() > 0) {
+		                	RSyntaxTextArea ta = areas.get(0);
+		                	jpMainView.setRefsOfActSourceTab();
+		                	if (jpMainView.getEditorTextArea() != null) {
+		                		jpMainView.setEditDisplayMode(ta.isEditable());
+		                	}
+
+		                	String sSyntax = ta.getSyntaxEditingStyle();
+		                	if (sSyntax == SyntaxConstants.SYNTAX_STYLE_JAVA) {
+		            		    
+		                		javaoutlinetree.listenTo(ta);
+		                		
+		                	} else {
+		                		jsoutlinetree.listenTo(ta);
+		                		
+		                	}
+		                	
+//		                	tree2.listenTo(ta);
+		                }
+		    			
+		    		}
+		        });*/
+		  
+		  jtpFlatFusionEditTabbedPane.addTab("<Neu>", MXNewSourceTabFactory.createTab("$EMPTY$"));
+		  this.setRefsOfActSourceTab();
+		  jtpFlatFusionEditTabbedPane.removeTabAt(0);
+		  
+		  pnSourcePanel.add(jtpFlatFusionEditTabbedPane, BorderLayout.CENTER); 
 // JScrollpane für die Outliner erzeugen
 		  scpoutlinetree = new JScrollPane(jsoutlinetree);
 		  scpjavaoutlinetree = new JScrollPane(javaoutlinetree);
@@ -543,6 +635,31 @@ public class FTLEditMainView extends JPanel {
 
 	  }
 	  
+	  public void selectTabForFile(String absolutePath) {
+		  
+		  int totalTabs = jtpFlatFusionEditTabbedPane.getTabCount();
+		  for(int i = 0; i < totalTabs; i++)
+		  {
+		     JPanel jps = (JPanel)jtpFlatFusionEditTabbedPane.getComponentAt(i);
+		     if(jps != null) {
+	        	  System.out.println(jps.getName());
+	        	  if (jps.getName().equals(absolutePath)) {
+	        		  jtpFlatFusionEditTabbedPane.setSelectedComponent(jps);
+	        		  break;
+	        	  }
+
+		     }
+		  }
+		  this.setRefsOfActSourceTab();
+	  }
+	  
+	  public void addTabForFile (File file) {
+		
+		  jtpFlatFusionEditTabbedPane.addTab(file.getName(), MXNewSourceTabFactory.createTab(file.getAbsolutePath()));
+		  this.selectTabForFile(file.getAbsolutePath());
+		  this.setRefsOfActSourceTab();		  
+	  }
+	  
 	  public void setSourceContextSuffix(String suffix) {
 
 // Je nach Dateiendung das entsprechende Syntax Highlighting setzen und bei
@@ -552,8 +669,10 @@ public class FTLEditMainView extends JPanel {
 			  
 			if (suffix.equals("html")) {
 				sourceCodeTextArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_HTML);
+				this.getJSOutlineTree().listenTo(sourceCodeTextArea);
 		 	} else if (suffix.equals("js")) {
 		 		sourceCodeTextArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_JAVASCRIPT);
+		 		this.getJSOutlineTree().listenTo(sourceCodeTextArea);
 		 		int loc = sppFlatFusionEditSplitPane.getDividerLocation();
 		 		int loc2 = sppFlatFusionTreeSplitPane.getDividerLocation();
 		 		sppFlatFusionTreeSplitPane.setTopComponent(pnJSOutlinePanel);
@@ -562,8 +681,10 @@ public class FTLEditMainView extends JPanel {
 			
 		 	} else if (suffix.equals("css")) {
 		 		sourceCodeTextArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_CSS);
+		 		this.getJSOutlineTree().listenTo(sourceCodeTextArea);
 		 	} else if (suffix.equals("java")) {
 		 		sourceCodeTextArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_JAVA);
+		 		this.getJavaOutlineTree().listenTo(sourceCodeTextArea);
 		 		int loc = sppFlatFusionEditSplitPane.getDividerLocation();
 		 		int loc2 = sppFlatFusionTreeSplitPane.getDividerLocation();
 		 		sppFlatFusionTreeSplitPane.setTopComponent(pnJavaOutlinePanel);
@@ -572,6 +693,7 @@ public class FTLEditMainView extends JPanel {
 
 		 	} else {
 		 		sourceCodeTextArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_NONE);
+		 		this.getJSOutlineTree().listenTo(sourceCodeTextArea);
 		 	}
 		  
 			sourceCodeTextArea.revalidate();
@@ -696,6 +818,18 @@ public class FTLEditMainView extends JPanel {
 	  
 	  public RTextScrollPane getScrollPaneEditorTextArea() {
 		  return scpsourceCodeTextArea;
+	  }
+
+	  public JTabbedPaneCloseButton getTabbedPanel() {
+		  return jtpFlatFusionEditTabbedPane;
+	  }
+
+	  public AbstractSourceTree getJSOutlineTree() {
+		  return jsoutlinetree;
+	  }
+
+	  public AbstractSourceTree getJavaOutlineTree() {
+		  return javaoutlinetree;
 	  }
 	  
 	  public void addReplaceDialog(JFrame mainframe, FTLEditController maincontroller) {
@@ -960,6 +1094,26 @@ public class FTLEditMainView extends JPanel {
 	                break;
 	            }
 	        }
+	  }
+	  
+	  public void setRefsOfActSourceTab() {
+
+// Die globalen Referenzen mit den Objekten aus dem aktuell ausgew㧬ten Tab versorgen
+		  
+		  List<RSyntaxTextArea> areas = MXNewSourceTabFactory.findAllChildren((JComponent)jtpFlatFusionEditTabbedPane.getSelectedComponent(), RSyntaxTextArea.class);
+          if (areas.size() > 0) {
+        	  sourceCodeTextArea = areas.get(0);
+          }
+           
+		  List<RTextScrollPane> scps = MXNewSourceTabFactory.findAllChildren((JComponent)jtpFlatFusionEditTabbedPane.getSelectedComponent(), RTextScrollPane.class);
+          if (scps.size() > 0) {
+        	  scpsourceCodeTextArea = scps.get(0);
+          }
+
+		  List<JPanel> jps = MXNewSourceTabFactory.findAllChildren((JComponent)jtpFlatFusionEditTabbedPane.getSelectedComponent(), JPanel.class);
+          if (jps.size() > 0) {
+        	  pnActTabPanel = jps.get(0);
+          }
 	  }
 	  
 

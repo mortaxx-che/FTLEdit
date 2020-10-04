@@ -75,9 +75,12 @@ import java.lang.reflect.Proxy;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Hashtable;
+import java.util.List;
 import java.util.Locale;
+import java.util.Random;
 import java.util.ResourceBundle;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
@@ -91,11 +94,13 @@ import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
+import javax.swing.JTabbedPane;
 import javax.swing.JTree;
 import javax.swing.KeyStroke;
 import javax.swing.AbstractAction;
 import javax.swing.UIManager;
-
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
 import javax.swing.event.TreeSelectionEvent;
 import javax.swing.event.TreeSelectionListener;
 import javax.swing.text.BadLocationException;
@@ -103,15 +108,22 @@ import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
 
+import org.fife.rsta.ac.js.tree.JavaScriptTreeNode;
+import org.fife.rsta.ac.SourceTreeNode;
+import org.fife.rsta.ac.java.rjc.ast.ASTNode;
 import org.fife.rsta.ui.search.ReplaceDialog;
 import org.fife.rsta.ui.search.SearchEvent;
 import org.fife.rsta.ui.search.SearchListener;
+import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
+import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 import org.fife.ui.rtextarea.GutterIconInfo;
 import org.fife.ui.rtextarea.SearchContext;
 import org.fife.ui.rtextarea.SearchEngine;
 import org.fife.ui.rtextarea.SearchResult;
+import org.mozilla.javascript.ast.AstNode;
 
 import net.mortaxx.software.FlatFusionTools.BareBonesBrowserLaunch;
+import net.mortaxx.software.FlatFusionTools.FTLEditEventListener;
 
 //import com.apple.eawt.ApplicationEvent;
 
@@ -128,11 +140,10 @@ public class FTLEditController implements SearchListener {
 //	FTLEditBrowserView editorPreviewDialog;
 	FTLEditPreferencesView editorPreferencesView;
 	FTLEditModel editorModel;
+	FTLEditController editorController;
 	JFrame frame;
 	private ResourceBundle messagebundle;
 	private Locale currentlocale;
-	
-	//static FTLEditControllerSWT g_rcl_controller;
 	
 	boolean g_flg_mainframe; // Aufruf aus FlatFusion
 	
@@ -145,6 +156,7 @@ public class FTLEditController implements SearchListener {
 	
 		g_flg_mainframe = mainframe;
 		projectFile = startfile;
+		editorController = this;
 		
 	     try {
 
@@ -248,7 +260,8 @@ public class FTLEditController implements SearchListener {
 // JTree Objekt holen und lokale Klasse mit TreeSelectionListener daran hängen
 		 
 		 editorView.getFileTree().addTreeSelectionListener(new FileTreeListener(editorView.getFileTree(), this));
-//		 editorView.getOutlineTree().addTreeSelectionListener(new OutlineTreeListener(editorView.getOutlineTree(), this));
+		 editorView.getJSOutlineTree().addTreeSelectionListener(new OutlineTreeListener(editorView.getJSOutlineTree(), this));
+//		 editorView.getJavaOutlineTree().addTreeSelectionListener(new OutlineTreeListener(editorView.getJavaOutlineTree(), this));
 		 
 // ToggleButton für Umschalten zwischen Anzeige- und Editiermodus holen und ActionListener setzen	 
 		 editorView.getEditDisplayButton().addActionListener(new ButtonListener(this));
@@ -283,7 +296,51 @@ public class FTLEditController implements SearchListener {
 	          public void actionPerformed(ActionEvent e) {
 	        	  editorView.getSearchNextButton().doClick(0);
 	          }
-	       });		 
+	       });
+		
+		 editorView.getTabbedPanel().addChangeListener(new ChangeListener() {
+
+	    		public void stateChanged(ChangeEvent e) {
+	                System.out.println("Tab: " + editorView.getTabbedPanel().getSelectedIndex());
+	                if (editorView.getTabbedPanel().getSelectedIndex() != -1) {
+	                	List<RSyntaxTextArea> areas = MXNewSourceTabFactory.findAllChildren((JComponent)editorView.getTabbedPanel().getSelectedComponent(), RSyntaxTextArea.class);
+	                	if (areas.size() > 0) {
+	                		RSyntaxTextArea ta = areas.get(0);
+	                		editorView.setRefsOfActSourceTab();
+	                		editMode = ta.isEditable();
+	                		if (editorView.getEditorTextArea() != null) {
+	                			editorView.setEditDisplayMode(ta.isEditable());
+	                		}
+
+	                		String sSyntax = ta.getSyntaxEditingStyle();
+	                		if (sSyntax == SyntaxConstants.SYNTAX_STYLE_JAVA) {
+	            		    
+	                			editorView.getJavaOutlineTree().listenTo(ta);
+	                		
+	                		} else {
+	                			editorView.getJSOutlineTree().listenTo(ta);
+	                		
+	                		}
+	                	
+	                		JPanel pan = (JPanel)ta.getParent().getParent().getParent();
+	                		Object[] openFile = editorModel.isFileAlreadyOpen(pan.getName());
+						
+	                		if (openFile != null) {
+	                			editorModel.setActualFileContent((String)openFile[1]);
+	                			editorModel.setActualSourceFile((File)openFile[2]);
+	                			editorModel.setActualFileEncoding((Charset)openFile[3]);
+	                		}
+	                		editorView.showBookmarks(editorModel.getBookmarks());
+	                		editorView.setSourceContextSuffix(editorModel.getActualSourceFileSuffix());
+//	                	tree2.listenTo(ta);
+	                	}
+	                }
+	    			
+	    		}
+	        });
+		 
+		 editorView.getTabbedPanel().addListener(new MXJTabbedPaneEventListener(this));
+		 
 		 if (projectFile == null) {
 // Wurzelverzeichnis des Dateibaumes selektieren
 		 
@@ -391,7 +448,8 @@ public class FTLEditController implements SearchListener {
         };
 
         editorView.getBookmarkTree().addMouseListener(bookmarktreemouselistener);
-        editorView.getEditorTextArea().getActionMap().put("ToggleBookmark", new AbstractAction(){
+        this.setBookmarkAction();
+/*        editorView.getEditorTextArea().getActionMap().put("ToggleBookmark", new AbstractAction(){
         	
             public void actionPerformed(ActionEvent e) {
 
@@ -449,7 +507,7 @@ public class FTLEditController implements SearchListener {
             	
             }
 
-        });
+        });*/
 
 	}
 
@@ -471,13 +529,20 @@ public class FTLEditController implements SearchListener {
 		return editorPreviewDialog;
 	}*/
 	
-	public int handleFileChange(boolean xchng) {
+	public int handleFileChange(boolean xchng, boolean bRead, String sourcecontent) {
 
 // Methode zur Behandlung einer geänderten Datei
 		
 		String content;
+		String actualContent;
+		File fileToRead;
 		int action;
 		
+		if (sourcecontent != null) {
+			actualContent = sourcecontent;
+		} else {
+			actualContent = editorView.getSourceContent();
+		}
 		if (xchng == true) {
 			
 // Eine Anderung zwischen den gelesenen Daten und den Daten aus dem View wurde gefunden
@@ -490,8 +555,9 @@ public class FTLEditController implements SearchListener {
 								
 // Daten sichern und das neue File einlesen und anzeigen
 								
-					editorModel.writeFile(editorView.getSourceContent());
-					content = editorModel.readFile(editorView.getFileTree().getSelectedFile());
+					editorModel.writeFile(actualContent);
+					if (bRead == true) {
+					content = editorModel.readFile(editorView.getFileTree().getSelectedFile(), generateRandomFileNumber());
 					editorView.setSourceContent(content, false);
 					editorView.setSourceContextSuffix(editorModel.getActualSourceFileSuffix());
 					
@@ -504,13 +570,16 @@ public class FTLEditController implements SearchListener {
 						editMode = false;
 						editorView.setEditDisplayMode(editMode);
 					}
+					}
+					editorView.showBookmarks(editorModel.getBookmarks());
 								
 				}
 				else if (action == JOptionPane.NO_OPTION) {
 								
 // Daten nicht sichern, aber das neue File einlesen und anzeigen
 			
-					content = editorModel.readFile(editorView.getFileTree().getSelectedFile());
+					if (bRead == true) {
+					content = editorModel.readFile(editorView.getFileTree().getSelectedFile(), generateRandomFileNumber());
 					editorView.setSourceContent(content, false);
 					
 //					editorPreviewDialog.setPreviewURL(editorModel.getTempFile());
@@ -522,6 +591,8 @@ public class FTLEditController implements SearchListener {
 					if (editorView.getFileTree().getSelectedFile().isDirectory() == true) {
 						editMode = false;
 						editorView.setEditDisplayMode(editMode);
+					}
+					editorView.showBookmarks(editorModel.getBookmarks());
 					}
 								
 				}
@@ -536,20 +607,23 @@ public class FTLEditController implements SearchListener {
 		// Keine Änderung - neu ausgewählte Datei laden und anzeigen
 							
 				action = JOptionPane.NO_OPTION;
-				content = editorModel.readFile(editorView.getFileTree().getSelectedFile());
+				if (bRead == true) {
+				content = editorModel.readFile(editorView.getFileTree().getSelectedFile(), generateRandomFileNumber());
 				editorView.setSourceContent(content, false);
 				editorModel.setActualFileContent(editorView.getSourceContent());
 
 //				editorPreviewDialog.setPreviewURL(editorModel.getTempFile());
 //				editorPreviewDialog.setBrowserContent(content, false);
 				editorView.setSourceContextSuffix(editorModel.getActualSourceFileSuffix());
-				editorView.showBookmarks(editorModel.getBookmarks());
+
 				
 		// Falls neue Auswahl ein Verzeichnis ist - Änderungsmodus deaktivieren	
 				if (editorView.getFileTree().getSelectedFile().isDirectory() == true) {
 					editMode = false;
 					editorView.setEditDisplayMode(editMode);
 				}
+				}
+				editorView.showBookmarks(editorModel.getBookmarks());
 			}
 
 		return action;
@@ -666,16 +740,51 @@ public class FTLEditController implements SearchListener {
     void handleApplicationClose (String calledFrom) {
     	
 // Prüfen ob die aktuelle Datei ungesicherte Änderungen hat
+    	
+    	boolean xchng = false;
+    	boolean bExit = true;
+    	int action = 0;
+    	JTabbedPane tabpan = editorView.getTabbedPanel();
 		
-		boolean xchng = this.getModel().isSourceFileChanged(editorView.getSourceContent());
+		  int totalTabs = tabpan.getTabCount();
+		  for(int i = 0; i < totalTabs; i++)
+		  {
+		     JPanel jps = (JPanel)tabpan.getComponentAt(i);
+		     if(jps != null) {
+	        	System.out.println(jps.getName());
+	        	RSyntaxTextArea area = null;
+
+	        	List<RSyntaxTextArea> areas = MXNewSourceTabFactory.findAllChildren((JComponent)tabpan.getComponentAt(i), RSyntaxTextArea.class);
+	        	area = areas.get(0);
+
+	        	Object[] openFile = editorModel.isFileAlreadyOpen(jps.getName());
+					
+				if (openFile != null) {
+						editorModel.setActualFileContent((String)openFile[1]);
+						editorModel.setActualSourceFile((File)openFile[2]);
+						editorModel.setActualFileEncoding((Charset)openFile[3]);
+				}
+	        	xchng = this.getModel().isSourceFileChanged(jps.getName(), area.getText());
+	        	action = this.handleFileChange(xchng, false, area.getText());
+	        	if (action == JOptionPane.CANCEL_OPTION) {
+	        		  bExit = false;
+	        	}
+//	        	  if (jps.getName().equals(absolutePath)) {
+//	        		  jtpFlatFusionEditTabbedPane.setSelectedComponent(jps);
+//	        		  break;
+//	        	  }
+
+		     }
+		  }
+//		boolean xchng = this.getModel().isSourceFileChanged(editorView.getSourceContent());
 		
 //Den Benutzer fragen, was er tun will
-		int action = this.handleFileChange(xchng);
+//		int action = this.handleFileChange(xchng);
 		
 //Wenn der Benutzer nicht "Abbrechen" gewählt hat, dann wurden die Anderungen gesichert oder verworfen
 //also kann die Anwendung beendet werden
 		
-		if (action != JOptionPane.CANCEL_OPTION) {
+		if (bExit == true) {
 			
 			this.setUserPrefs();
 // Die dispose-Methode verursacht unter Windows einen Fehler beim Beenden der Anwendung - daher Fenster nur auf unsichtbar setzen
@@ -690,6 +799,18 @@ public class FTLEditController implements SearchListener {
 			else {
 //Aufruf aus FlatFusion CMS - Fenster ausblenden
 				this.frame.dispose();
+			}
+		} else {
+// Im Model die Daten zur aktuell selektierten Datei wieder herstellen
+			
+			JPanel jpsact = (JPanel)tabpan.getSelectedComponent();
+			
+        	Object[] openFileAct = editorModel.isFileAlreadyOpen(jpsact.getName());
+			
+			if (openFileAct != null) {
+					editorModel.setActualFileContent((String)openFileAct[1]);
+					editorModel.setActualSourceFile((File)openFileAct[2]);
+					editorModel.setActualFileEncoding((Charset)openFileAct[3]);
 			}
 		}
     }
@@ -772,6 +893,78 @@ public class FTLEditController implements SearchListener {
 
 		
 	} 
+	
+    private String generateRandomFileNumber() {
+
+        Random r = new Random();
+        Integer rnumber = r.nextInt((999999 - 100000) + 1) + 100000;
+        return rnumber.toString();
+
+    }
+    
+    private void setBookmarkAction() {
+
+        editorView.getEditorTextArea().getActionMap().put("ToggleBookmark", new AbstractAction(){
+        	
+            public void actionPerformed(ActionEvent e) {
+
+            	System.out.println("F2: Bookmarking");
+            	HashMap<String, String> bookmarks = new HashMap();
+            	try {
+            		editorView.getScrollPaneEditorTextArea().getGutter().toggleBookmark(editorView.getEditorTextArea().getCaretLineNumber());
+            	} catch (BadLocationException e1) {
+                                   // TODO Auto-generated catch block
+            		e1.printStackTrace();
+                }
+
+            	GutterIconInfo[] gutterinfos = editorView.getScrollPaneEditorTextArea().getGutter().getBookmarks();
+            	DefaultTreeModel outlinemodel = (DefaultTreeModel)editorView.getBookmarkTree().getModel();
+           		DefaultMutableTreeNode outlineroot = (DefaultMutableTreeNode)outlinemodel.getRoot();
+
+           		outlineroot.removeAllChildren();
+           		int startoffset = 0;
+           		int endoffset = 0;
+           		
+            	for( int i = 0; i < gutterinfos.length; i++ ) {
+
+           			int offset = gutterinfos[i].getMarkedOffset();
+
+           			try {
+           				startoffset = editorView.getEditorTextArea().getLineStartOffset(editorView.getEditorTextArea().getLineOfOffset(offset));
+           			} catch (BadLocationException e2) {
+                                              // TODO Auto-generated catch block
+           				e2.printStackTrace();
+           			}
+           			try {
+           				endoffset = editorView.getEditorTextArea().getLineEndOffset(editorView.getEditorTextArea().getLineOfOffset(offset));
+           			} catch (BadLocationException e2) {
+                                              // TODO Auto-generated catch block
+           				e2.printStackTrace();
+            		}
+            		String line = null;
+            		
+            		try {
+            			line = editorView.getEditorTextArea().getText(startoffset, endoffset - startoffset);
+           			} catch (BadLocationException e1) {	
+                                  // TODO Auto-generated catch block
+           				e1.printStackTrace();
+            		}
+
+            		String[] tokens = { line, Integer.toString(offset) };
+            		bookmarks.put(Integer.toString(offset), line);
+            		OutlineTreeNode tokenNode = new OutlineTreeNode(tokens);
+
+            		outlineroot.add(tokenNode);
+
+            	}
+            	outlinemodel.reload(outlineroot);
+            	editorModel.storeBookmarks(bookmarks);
+            	
+            }
+
+        });
+        
+    }
 	/*######################################################################
 	 * Lokale Listener Klasse für Outline JTree
 	 *######################################################################
@@ -795,11 +988,27 @@ public class FTLEditController implements SearchListener {
 			
 			if (oldsel != newsel && newsel != null) {
 					
-				DefaultMutableTreeNode node = (DefaultMutableTreeNode) newsel.getLastPathComponent();
-				String[][] tokens =  (String[][])node.getUserObject();
-				System.out.println(tokens[0][0]);
+				Object node = newsel.getLastPathComponent();
+				if (node instanceof JavaScriptTreeNode) {
+					JavaScriptTreeNode jstn = (JavaScriptTreeNode)node;
+					int len = jstn.getLength();
+					if (len>-1) { // Should always be true
+						int offs = jstn.getOffset();
+						editcontroller.editorView.getEditorTextArea().setCaretPosition(offs);
+					}
+				} else  {
+					DefaultMutableTreeNode node2 = (DefaultMutableTreeNode) newsel.getLastPathComponent();
+					ArrayList selectedNodeAttribs = (ArrayList)node2.getUserObject();
+					ASTNode attribs = (ASTNode)selectedNodeAttribs.get(0);
+					editcontroller.editorView.getEditorTextArea().setCaretPosition(attribs.getNameStartOffset());
+					System.out.println(attribs.getNameStartOffset());
+				}
+/*				DefaultMutableTreeNode node = (DefaultMutableTreeNode) newsel.getLastPathComponent();
+				ArrayList selectedNodeAttribs = (ArrayList)node.getUserObject();
+				ASTNode attribs = (ASTNode)selectedNodeAttribs.get(0);
+				System.out.println(attribs);*/
 				
-				editcontroller.editorView.getEditorTextArea().setCaretPosition(Integer.valueOf(tokens[0][1]));
+//				editcontroller.editorView.getEditorTextArea().setCaretPosition(Integer.valueOf(tokens[1]));
 
 			}
 			
@@ -829,18 +1038,50 @@ public class FTLEditController implements SearchListener {
 			
 			if (oldsel != newsel) {
 				
+				
 				if (oldselrestored == newsel) {
 					
 					oldselrestored = null;
 				}
 				else {
 					
+					int action = 0;
+					
+					Object[] openFile = editorModel.isFileAlreadyOpen(treeobject.getSelectedFile().getAbsolutePath());
 				
+					if (openFile != null) {
+					
+						editorView.selectTabForFile(treeobject.getSelectedFile().getAbsolutePath());
+						editorView.setEditDisplayMode(editorView.getEditorTextArea().isEditable());
+						editMode = editorView.getEditorTextArea().isEditable();
+						editorModel.setActualFileContent((String)openFile[1]);
+						editorModel.setActualSourceFile((File)openFile[2]);
+						editorModel.setActualFileEncoding((Charset)openFile[3]);
+						editorView.setSourceContextSuffix(editorModel.getActualSourceFileSuffix());
+
+					
+					} else if (openFile == null && treeobject.getSelectedFile().isFile()){
+
+						editorModel.setActualFileContent("");
+						editorModel.setActualSourceFile(null);
+						editorModel.setActualFileEncoding(null);
+						editorView.addTabForFile(treeobject.getSelectedFile());
+						editMode = false;
+						action = editcontroller.handleFileChange(false, true, null);
+						// Bookmarks setzen/loeschen fuer Editor-Textarea
+				        InputMap imEditorArea = editorView.getEditorTextArea().getInputMap(JComponent.WHEN_FOCUSED);
+				        imEditorArea.put(KeyStroke.getKeyStroke("ctrl pressed F2"), "ToggleBookmark");
+				// Suchen/Ersetzen Dialog
+				        imEditorArea.put(KeyStroke.getKeyStroke("ctrl pressed H"), "Replace");
+				        editorView.getEditorTextArea().getActionMap().put("Replace", new ShowReplaceDialogAction());
+				        editcontroller.setBookmarkAction();
+					
+					}
 // Prüfen ob der Quellcode geändert wurde
 				
-				boolean xchng = editorModel.isSourceFileChanged(editorView.getSourceContent());
+//				boolean xchng = editorModel.isSourceFileChanged(editorView.getSourceContent());
 				
-				int action = editcontroller.handleFileChange(xchng);
+//				int action = editcontroller.handleFileChange(false);
 				
 				if (action == JOptionPane.CANCEL_OPTION) {
 
@@ -1000,16 +1241,16 @@ public class FTLEditController implements SearchListener {
 				
 // Erstmal prüfen, ob die aktuell offene Datei gesichert werden muß
 				
-				boolean xchng = editorModel.isSourceFileChanged(editorView.getSourceContent());
+//				boolean xchng = editorModel.isSourceFileChanged(editorView.getSourceContent());
 				
 // Benutzer fragen, ob er sichern will oder nicht
 				
-				int action = editcontroller.handleFileChange(xchng);
+//				int action = editcontroller.handleFileChange(xchng);
 	
 // Benutzer hat nicht "Abbrechen" gewählt, was bedeuten würde, daß auf der nicht gesicherten
 // Datei stehen geblieben werden muß
 				
-				if (action != JOptionPane.CANCEL_OPTION) {
+//				if (action != JOptionPane.CANCEL_OPTION) {
 					
 // Das übergeordnete Verzeichnis der aktuellen Auswahl ermitteln
 				
@@ -1077,7 +1318,12 @@ public class FTLEditController implements SearchListener {
 							editorModel.setActualFileEncoding(Charset.defaultCharset());
 
 							editorModel.writeFile("");
+							
+							editorView.addTabForFile(new File(newFile));
+							editorView.selectTabForFile(newFile);
 							editorView.setSourceContent("", false);
+							
+							editorModel.readFile(new File(newFile), editorController.generateRandomFileNumber());
 						
 							actNode = (DefaultMutableTreeNode) actPath.getLastPathComponent();
 					
@@ -1137,7 +1383,7 @@ public class FTLEditController implements SearchListener {
 						editorView.showFileExistsDialog(newFile);
 						}
 					}
-				}
+//				}
 				
 			}
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1196,16 +1442,16 @@ public class FTLEditController implements SearchListener {
 											
 // Erstmal prüfen, ob die aktuell offene Datei gesichert werden muß
 				
-				boolean xchng = editorModel.isSourceFileChanged(editorView.getSourceContent());
+//				boolean xchng = editorModel.isSourceFileChanged(editorView.getSourceContent());
 				
 // Benutzer fragen, ob er sichern will oder nicht
 				
-				int action = editcontroller.handleFileChange(xchng);
+//				int action = editcontroller.handleFileChange(xchng);
 	
 // Benutzer hat nicht "Abbrechen" gewählt, was bedeuten würde, daß auf der nicht gesicherten
 // Datei stehen geblieben werden muß
 				
-				if (action != JOptionPane.CANCEL_OPTION) {
+//				if (action != JOptionPane.CANCEL_OPTION) {
 					
 					if (editorView.getFileTree().getSelectedFile().isDirectory()) {
 						
@@ -1222,7 +1468,7 @@ public class FTLEditController implements SearchListener {
 						
 						editorView.getFileTree().changeRoot(newDir);
 						editorView.getFileTree().setSelectionRow(0);
-						String content = editorModel.readFile(editorView.getFileTree().getSelectedFile());
+						String content = editorModel.readFile(editorView.getFileTree().getSelectedFile(), generateRandomFileNumber());
 						editorView.setSourceContent(content, false);
 						editorModel.setActualFileContent(editorView.getSourceContent());
 						editorView.setSourceContextSuffix(editorModel.getActualSourceFileSuffix());
@@ -1233,7 +1479,7 @@ public class FTLEditController implements SearchListener {
 						}
 						editcontroller.setProjectDir(newDir);
 						
-					}
+//					}
 				}
 			
 			}
@@ -1369,6 +1615,41 @@ public class FTLEditController implements SearchListener {
 		
 	}
 
+	public class MXJTabbedPaneEventListener implements FTLEditEventListener {
+		
+		FTLEditController editcontroller;
+		
+		public MXJTabbedPaneEventListener(FTLEditController controller) {
+			
+			editcontroller = controller;
+
+		}
+		
+		public boolean handleJTabbedPaneClose() {
+			// TODO Auto-generated method stub
+
+			boolean bCanClose = true;
+		     JPanel jps = (JPanel)editorView.getTabbedPanel().getComponentAt(editorView.getTabbedPanel().getSelectedIndex());
+		     if(jps != null) {
+	        	System.out.println(jps.getName());
+	        	RSyntaxTextArea area = null;
+
+	        	List<RSyntaxTextArea> areas = MXNewSourceTabFactory.findAllChildren((JComponent)editorView.getTabbedPanel().getComponentAt(editorView.getTabbedPanel().getSelectedIndex()), RSyntaxTextArea.class);
+	        	area = areas.get(0);
+
+	        	boolean xchng = editorModel.isSourceFileChanged(jps.getName(), area.getText());
+	        	int action = editcontroller.handleFileChange(xchng, false, area.getText());
+	        	if (action != JOptionPane.CANCEL_OPTION) {
+	        		bCanClose = true;
+	        		editorModel.removeAlreadyOpenFile(jps.getName());
+	        	} else {
+	        		bCanClose = false;
+	        	}
+		     }
+		     return bCanClose;
+		}
+		
+	}
 	  /**
 	   * Shows the Replace dialog.
 	   */

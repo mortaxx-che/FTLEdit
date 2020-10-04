@@ -72,6 +72,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Locale;
+import java.util.Random;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
 
@@ -83,9 +84,6 @@ import net.mortaxx.software.FlatFusionTools.FlatFusionEventListener;
 
 public class FTLEditModel {
 
-	
-// --> SWT branch
-	
 	/* ###################################################################
 	 * Model-Klasse fürr FlatFusion Edit, führt alle Dateioperationen durch
 	 #####################################################################*/
@@ -93,6 +91,7 @@ public class FTLEditModel {
 	private File actualSourceFile = null;
 	private String actualSourceFileSuffix = null;
 	private String actualFileContent = "";
+	private String actualTempId = "";
 	private Charset actualCharset = null;
 	private Charset fileWriteCharset = null;
 	private Charset preferredCharset = null;
@@ -102,10 +101,11 @@ public class FTLEditModel {
 	private char[] cbuf;
 	private InputStreamReader isreader;
 	private File tempFile = null;
+	private String actualTempDir = "";
 //	private CodepageDetectorProxy detector;
 	private Locale currentlocale;
 
-//	private HashMap<String, HashMap<String, String>> actualBookMarks = null;
+	private HashMap<String, Object[]> actualOpenFiles = null;
 
 // Constructor
 	
@@ -118,7 +118,8 @@ public class FTLEditModel {
 			tempdir = tempdir + "/";
 		}
 		System.out.println(tempdir);
-		tempFile = new File(tempdir + "flatfusionedittmp.html");
+		actualTempDir = tempdir;
+		tempFile = new File(tempdir + "flatfusionedittmp100000.html");
 		listenerList = new EventListenerList();
 		editorPrefs = Preferences.userNodeForPackage(this.getClass());
 		if (editorPrefs.get("saveEncoding", "FILE").toString().equals("FILE")) {
@@ -130,6 +131,7 @@ public class FTLEditModel {
 		}
 		
 		currentlocale = currentloc;
+		actualOpenFiles = new HashMap<String, Object[]>();
 		
 //---- cpdetector
 		
@@ -150,7 +152,7 @@ public class FTLEditModel {
 //		actualBookMarks = new HashMap<String, HashMap<String, String>>();
 	}
 	
-	public String readFile(File f) {
+	public String readFile(File f, String sTempId) {
 
 		Charset detectedCharset = null;
 		int reallength = 0; //Tatsächliche Dateilänge in Zeichen
@@ -238,6 +240,14 @@ public class FTLEditModel {
 
 // Temporäre Datei für Anzeige der Vorschau wegschreiben
 			
+			actualTempId = sTempId;
+			tempFile = new File(actualTempDir + "flatfusionedittmp" + sTempId + ".html");
+			Object[] filedata = new Object[4];
+			filedata[0] = tempFile.getAbsolutePath();
+			filedata[1] = realstring;
+			filedata[2] = f;
+			filedata[3] = detectedCharset;
+			actualOpenFiles.put(f.getAbsolutePath(), filedata);
 			this.writeTempFile(realstring);
 			return realstring;
 
@@ -250,6 +260,7 @@ public class FTLEditModel {
 			this.writeTempFile("");
 			return new String("");
 		}
+		
 		
 	}
 	
@@ -277,18 +288,31 @@ public class FTLEditModel {
 			e.printStackTrace();
 		}
 		
+		Object[] filedata = actualOpenFiles.get(actualSourceFile.getAbsolutePath());
+		if (filedata != null) {
+			filedata[1] = fileContent;
+			actualOpenFiles.put(actualSourceFile.getAbsolutePath(), filedata);
+		}
 		this.fireFileSaved();
 	}
 	
-	public boolean isSourceFileChanged(String viewSourceContent) {
+	public boolean isSourceFileChanged(String absoluteFilePath, String viewSourceContent) {
 		
 // Prüfen ob der Inhalt der gelesenen Datei vom Inhalt der Oberfläche abweicht
 		
-		if (actualFileContent.equals(viewSourceContent)) {
-			return false;	
+		Object[] filedata = actualOpenFiles.get(absoluteFilePath);
+		
+		if (filedata != null) {
+			if (filedata[1].equals(viewSourceContent)) {
+				return false;	
+			}
+			else {
+				return true;
+			}
+		
 		}
 		else {
-			return true;
+			return false;
 		}
 		
 	}
@@ -306,7 +330,8 @@ public class FTLEditModel {
 		return actualSourceFileSuffix;
 		
 	}
-	
+
+
 	public void setActualFileContent(String content) {
 		
 // Setter-Methode für den Dateiinhalt der aktuell angezeigten Datei
@@ -330,6 +355,16 @@ public class FTLEditModel {
 						
 		actualCharset = cs;
 						
+	}
+
+	public void setActualSourceFile(File f) {
+		
+// Setter-Methode fuerr aktuelle Quellcodedatei
+								
+		actualSourceFile = f;
+		if (actualSourceFile != null) {
+			actualSourceFileSuffix = f.getName().substring(f.getName().lastIndexOf('.')+1);
+		}						
 	}
 	
 	public boolean isFileExisting (String filename) {
@@ -384,6 +419,7 @@ public class FTLEditModel {
 		return editorPrefs;
 	}
 	
+
 // Benutzereinstellungen abspeichern
 	
 	public void storeUserPrefs (String prefkey, String prefvalue) throws BackingStoreException {
@@ -417,8 +453,10 @@ public class FTLEditModel {
 		}
 		Writer fileWriter = null;
 
+		Object[] filedata = actualOpenFiles.get(actualSourceFile.getAbsolutePath());
+		
 		try {
-			fileWriter = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(tempFile.getAbsolutePath()), fileWriteCharset));
+			fileWriter = new BufferedWriter(new OutputStreamWriter(new FileOutputStream((String)filedata[0]), fileWriteCharset));
 		} catch (FileNotFoundException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -521,4 +559,23 @@ public class FTLEditModel {
     	}
         return bookmarks;
     }
+    
+    public Object[] isFileAlreadyOpen(String absolutePath) {
+    	
+    	Object[] filedata = actualOpenFiles.get(absolutePath);
+    	if (filedata != null && filedata.length > 0) {
+    		return filedata;
+    	} else {
+    		return null;
+    	}
+    }
+    
+    public void removeAlreadyOpenFile (String absolutePath) {
+    	
+    	Object[] filedata = actualOpenFiles.get(absolutePath);
+    	if (filedata != null && filedata.length > 0) {
+    		actualOpenFiles.remove(absolutePath);
+    	} 
+    }
+    
 }
